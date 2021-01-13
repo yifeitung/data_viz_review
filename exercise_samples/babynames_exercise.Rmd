@@ -1,0 +1,348 @@
+---
+title: "Babynames Exercise"
+author: "Yifei Dong"
+output:
+  html_document
+font-family: Helvetica
+subtitle: Data Visualization - Columbia University
+autosize: yes
+---
+
+```{r setup, echo=FALSE, eval=TRUE, message=FALSE, warning=FALSE}
+library("knitr")
+knitr::opts_chunk$set(echo = TRUE, eval=TRUE, message=FALSE, warning = FALSE)
+```
+
+## Babynames Exercise
+
+- For each year from 1880 to 2017, the data contains the number of children of each sex given each name. All names with more than 5 uses are given. 
+(Source: <http://www.ssa.gov/oact/babynames/limits.html>)
+
+## Install data package
+
+We are using the package "babynames" to get familiar with time series plots.
+
+```{r, echo=TRUE}
+library(babynames)
+```
+
+And while we are at it, let's load a few more necessary and helpful packages.
+
+```{r, echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+library(ggplot2)    # the king of plotting 
+library(magrittr)   # chain operators, e.g. to "pipe" a value forward
+library(tidyverse)      # for data manipulation 
+library(packcircles) # for circle packing
+library(scales)
+library(ggthemes) # for plot themes
+```
+
+## Let's check the data
+
+```{r}
+str(babynames)
+```
+
+## From A...
+
+```{r}
+head(babynames)
+```
+
+## to ... Z 
+```{r}
+tail(babynames)
+```
+
+## How many names?
+
+```{r}
+# How many unique names?
+length(unique(babynames$name))
+
+# How many kids in database (note n>5 per name/year)
+sum(babynames$n)/10^6
+```
+
+## Plot a single name over time - Choose yours!
+
+```{r, eval=FALSE}
+ggplot(babynames, aes(year, n)) +
+  geom_line(data = filter(babynames, name=="James"))
+```
+
+##
+
+```{r, eval=TRUE, echo=FALSE}
+ggplot(babynames, aes(year, n)) +
+  geom_line(data = filter(babynames, name=="James"))
+```
+
+Want went wrong here?
+
+## Check the data again
+
+```{r}
+head(filter(babynames, name=="James"))
+  # -> There are female and male entries for some names.
+```
+
+## Plot a single name over time
+
+```{r, eval=TRUE, echo=TRUE}
+ggplot(babynames, aes(year, n)) +
+  geom_line(data = filter(babynames, name=="James"), aes(color = sex))
+```
+
+## Top 10 Names of all time
+
+```{r, eval=FALSE}
+library(magrittr)  
+  # this is for the chain operator %>%
+  # also contained in the tidyverse package
+```
+
+- We select the top 10 boys and girls names of all time from the overall dataset
+
+```{r, eval=FALSE}
+# Try to follow this code chunk at home, using dplyr() and magrittr()
+top10 <- babynames %>%
+  group_by(sex, name) %>%
+  summarize(total = sum(n)) %>%
+  arrange(desc(total)) %>%
+  group_by(sex) %>%
+  mutate(rank=row_number()) %>%
+  filter(rank<=10)  %>%
+  arrange(sex, rank)
+```
+
+```{r, eval=FALSE, echo=TRUE}
+# Similar methods
+babynames %>%
+  group_by(sex, name) %>%
+  summarise(total = sum(n)) %>%
+  arrange(sex, desc(total)) %>%
+  group_by(sex) %>%
+  top_n(10, wt = total) %>%
+  mutate(rank = row_number())
+```
+
+```{r, eval=FALSE, echo = TRUE}
+top10f <- top10 %>% filter(sex=="F")
+top10m <- top10 %>% filter(sex=="M")
+```
+
+## Top 10 Names of all time - for girls
+
+```{r, eval=TRUE, echo=FALSE}
+top10 <- babynames %>%
+  group_by(sex, name) %>%
+  summarize(total = sum(n)) %>%
+  arrange(desc(total)) %>%
+  group_by(sex) %>%
+  mutate(rank=row_number()) %>%
+  filter(rank<=10)  %>%
+  arrange(sex, rank)
+
+top10f <- top10 %>% filter(sex=="F")
+top10m <- top10 %>% filter(sex=="M")
+
+top10f
+```
+
+## Top 10 Names of all time - and boys
+
+```{r, eval=TRUE, echo=FALSE}
+top10m
+```
+
+## Plot most 10 common names for boys and girls 
+
+```{r, eval=FALSE}
+babynames %>%
+  filter(sex=="F") %>%
+  filter(name %in% top10f$name) %>%
+  ggplot(., aes(year, n)) +
+  geom_line(aes(color=name, group=name))
+
+babynames %>%
+  filter(sex=="M") %>%
+  filter(name %in% top10m$name) %>%
+  ggplot(., aes(year, n)) +
+  geom_line(aes(color=name, group=name))
+
+```
+
+##  Plot 10 most common names
+
+```{r, eval=TRUE, echo=FALSE, fig.width=8, fig.height=2.2}
+babynames %>%
+  filter(sex=="F") %>%
+  filter(name %in% top10f$name) %>%
+  ggplot(., aes(year, n)) +
+  geom_line(aes(color=name, group=name))
+```
+
+```{r, eval=TRUE, echo=FALSE, fig.width=8, fig.height=2.2}
+babynames %>%
+  filter(sex=="M") %>%
+  filter(name %in% top10m$name) %>%
+  ggplot(., aes(year, n)) +
+  geom_line(aes(color=name, group=name))
+```
+
+## Now on your own
+
+1. Plot the most common names in 2017 over the entire period.
+
+```{r, eval=TRUE, echo=TRUE}
+exercise1 <- babynames %>%
+  filter(year == 2017) %>%
+  group_by(sex) %>%
+  arrange(desc(n), .by_group = TRUE) %>%
+  top_n(10, wt = n) %>%
+  ungroup()
+exercise1
+```
+
+### Bar Chart
+
+```{r, eval=TRUE, fig.align="center"}
+# Use facet_warp when you have only one variable with many levels
+ggplot(exercise1, aes(x = reorder(name, prop), y = prop, fill = sex))+
+  geom_bar(stat = "identity")+
+  facet_wrap(~sex, scales = "free")+ # by setting scales free, scales are vary across both rows and columns
+  scale_fill_discrete("Gender", labels = c("Female", "Male"))+
+  scale_x_discrete("Name")+
+  scale_y_continuous("Proportion", labels = scales::percent)+
+  ggtitle("Top 10 Most Common Names in 2017 grouped by Gender")+
+  theme(plot.title = element_text(size = 9, face = "bold", hjust = 0.5))+
+  coord_flip()
+```
+
+### Optional: Circle Packing Chart
+
+What I am doing here is to draw a `circle packing` chart with only one level of hierarchy. You just represent each entity or
+individual of your dataset with a circle, its size depending on a provided value. You need `packcircles` package to draw a
+circle packing chart.
+
+```{r, eval=TRUE}
+# circleProgressiveLayout automatically creates a data frame with x and y centers for circles and radii, based on the values for the data you feed it.
+packing <- circleProgressiveLayout(exercise1$n, sizetype = "area")
+
+####add the centers and radii to the sample data
+exercise1 <- add_column(exercise1, packing)
+
+# Provides more points for ggplot to draw the perimeters of the circles
+dat.gg<-circleLayoutVertices(packing, npoints=50)
+```
+
+```{r, fig.align="center", eval=TRUE}
+ggplot()+
+  geom_polygon(data=dat.gg,
+               aes(x=x, ### this x value is the x-axis value of the center of the circles
+                   y=y, ### this y value is the x-axis value of the center of the circles
+                   group=id, #### this is the id number for the circles
+                   fill=c(rep("blue", 510), rep("red", 510)), #### fill in the colors for the circles
+                   alpha=0.6))+ ####adds some transparency to the colors
+  geom_text(data = exercise1, 
+            aes(x = x, 
+                y = y,
+                size = n, #### vary the size of the text based on relative magnitude of the variable of interest
+                label = name), show.legend = FALSE)+
+  labs(title = "Top 10 Most Common Names in 2017 grouped by Gender")+
+  theme_void()+
+  scale_fill_discrete("Gender", labels = c("Female", "Male"))+
+  guides(alpha = FALSE)+
+  coord_equal() ### makes your plot square
+```
+
+2. Explore which names are most often used as unisex names. For which names has the popularity over time changed a lot?
+
+```{r, eval=TRUE, echo=FALSE}
+# Male Names
+male <- babynames %>%
+  filter(sex == "M") %>%
+  group_by(name) %>%
+  summarise(n = sum(n)) %>%
+  select (name, "Male" = n) %>%
+  ungroup()
+```
+
+```{r, eval=TRUE, echo=FALSE}
+# Female Names
+female <- babynames %>%
+  filter(sex == "F") %>%
+  group_by(name) %>%
+  summarize(n = sum(n)) %>%
+  select(name, "Female" = n) %>%
+  ungroup()
+```
+
+```{r, eval = TRUE, echo=FALSE}
+# How many unique Male Names in Male dataset
+length(unique(subset(babynames, babynames$sex == "M")$name))
+# How many unique Female Names in Female dataset
+length(unique(subset(babynames, babynames$sex == "F")$name))
+```
+
+```{r, eval=TRUE, echo=FALSE}
+# Combine Those two datasets use left-joins
+combined_dataset <- inner_join(female, male, by = "name")
+```
+
+```{r, eval=TRUE}
+unisex <- combined_dataset %>%
+  filter(Female != "NA") %>%
+  mutate(total_birth = Male+Female) %>%
+  filter(total_birth >= 8000) %>%
+  mutate(Mprop = Male/total_birth, 
+         Fprop = Female/total_birth) %>%
+  mutate(difference = abs(Fprop-Mprop)) %>%
+  arrange(difference) %>%
+  head(10)
+unisex
+```
+
+```{r, fig.align="center", eval=TRUE}
+babynames %>%
+  filter(name %in% unisex$name & name != "Unknown") %>%
+  group_by(year, name, sex) %>%
+  summarize(total = sum(n)) %>%
+  ungroup() %>%
+  ggplot(aes(x = year, y = total))+
+  geom_line(aes(group = sex, col = sex))+
+  scale_y_continuous("Count")+
+  facet_wrap(~name)+
+  scale_color_discrete("Sex", labels = c("Female", "Male"))+
+  labs(title = "Most Often Used Unisex Names (1880-2017)", 
+       caption = "Source: US Social Security Administration")+
+  theme_fivethirtyeight()+
+  theme(plot.title = element_text(size = 10, face = "bold", hjust = 0.5), 
+        plot.caption = element_text(size = 8))
+```
+
+3. Identify one particular pattern in the data. For example:
+    - religious names are less/more common over time
+    - the top 5 names capture a different portion of all names at different points in time
+    - there are more "unique" names now
+    - certain names became popular after historical events / figures etc.
+    - some old names are making a revival after a certain time period (say a generation?)
+    
+Then try to capture this one pattern in a graphical display that highlights this one point. 
+
+```{r, fig.align="center", eval=TRUE}
+babynames %>%
+  filter(name == "Mohammed") %>%
+  ggplot(aes(x = year, y = n))+
+  geom_line()+
+  scale_y_continuous("Count", limits = c(0, 650))+
+  scale_x_continuous("Year", limits = c(1880, 2017), breaks = seq(1880, 2017, by = 10))+
+  geom_segment(aes(x = 2001, y = -Inf, xend = 2001, yend = 580), linetype = "dashed")+
+  geom_text(label = "September 11 Attack", x = 2001, y = 600, color = "red", size = 3)+
+  labs(title = "Babyname with Mohammed")+
+  theme_fivethirtyeight()+
+  theme(plot.title = element_text(size = 10, face = "bold", hjust = 0.5))
+```
+
+
