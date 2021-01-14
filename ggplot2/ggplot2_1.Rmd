@@ -1,0 +1,316 @@
+---
+title: 'QMSS Data Visualization'
+subtitle: "TA Session 1: Base Graphics and Getting Started with ggplot2 Package"
+author: "Yifei Dong"
+output: html_document
+bibliography: reference.bib
+link-citations: true
+---
+
+```{r setup, include=FALSE}
+######DO NOT MODIFY. This will load required packages.
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse) # for data manipulation
+library(scales) 
+library(ggthemes)
+library(haven) # import different formats of data file
+```
+
+### 1. What you should already known
+
+* Base R commands: Setting working directory, Getting Help, Vectors, Selecting Vector Elements (by Position, Value, or Name etc.), Writing Simple Functions etc.
+* Importing Data
+* Data Wrangling using `dplyr` package. Please notice that if you already installed `tidyverse` package, you do not need to library `dplyr`, `ggplot2` and `stringr` packages again because those packages are already included in the core tidyverse. 
+* R Base Graphics (`plot`): R has very flexible graphical capabilities. You could use base graphics functions to draw simple graphics. To review, you could type `demo(graphics)` in your R Console.
+
+***
+
+#### 1.1 Review Some Base Graphics
+
+**Examples: Barplot**
+
+Barplots and pie charts are commonly used to visualize categorical data. A barplot draws either vertical
+or horizontal bars, separated by empty space, to visualize frequencies according to the relevant
+categories. 
+
+I will go over using Base Graphics to draw a simple barplot, you may hear about the *stacked bar chart*
+(where bars are split up vertically) or *dodged/grouped bar chars* (where bars are broken up and placed beside each
+other). The Base Grphics could do them too, but requires more data manipulation or calculations, which I think
+`ggplot2` package works much better.
+
+Here, I am using data `mtcars` from 1974 Motor Trend US magazine, which comprises fuel
+consumption and 10 aspects of automobile design and performance for 32 cars (1973-74 models).
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results=TRUE}
+data("mtcars")
+str(mtcars)
+```
+
+Let's visualize how many cars with each number of cylinders. First, you must create a vector or a matrix of values describing the bars which make up the plot. Here, I create a frequency table for the cylinders.
+
+```{r, results=TRUE, eval=TRUE}
+(cyl.freq <- table(mtcars$cyl))
+```
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+barplot(cyl.freq)
+```
+
+##### Add title, change the labels of axes, axis ticks, or add colors. 
+  + `names.arg` argument is a vector of names to be plotted below each bar or group of bars.
+  + `main` argument is to add a title to your graph.
+  + `xlab` or `ylab` is to change your labels of axes.
+  + `col` argument will change the colors of your bars. Different formats of colors can be used, either RGB or HEX.
+  You can also use color names in [R Color Cheatsheet](https://www.nceas.ucsb.edu/sites/default/files/2020-04/colorPaletteCheatsheet.pdf)
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+barplot(cyl.freq, names.arg = c("V4", "V6", "V8"), main = "Car Distributions by Number of Cylinders",
+        xlab = "Number of Cylinders", ylab = "Count", col = "lightblue")
+```
+
+Instead of count, you can also plot proportions, depending on what data you pass to barplot. If you already have a
+frequency table, you can simply call `prop.table()` function to show proportions.
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+barplot(prop.table(cyl.freq), names.arg = c("V4", "V6", "V8"), 
+        main = "Car Distributions by Number of Cylinders",
+        xlab = "Number of Cylinders", ylab = "Proportions", 
+        col = "#111E6C") # Here I am using HEX format color
+```
+
+**Example: Pie Chart**
+
+* Pie Chart works in a very similar way as Bar Chart. The function to use in Base R is `pie()`.
+  + Use `labels` to change the labels of categorical variable, it should be a vector.
+* Pie Chart is attractive, but I do not recommend to use pie chart for visualizing purposes (at least for distributions). People sometimes struggle to compare the angles as you can see in the following chart.
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+pie(cyl.freq, col = c("yellow", "green", "blue"), labels = c("V4", "V6", "V8"), 
+    main = "Car Distributions by Number of Cylinders")
+```
+
+**Example: Histogram**
+
+To visualize the distribution of numerical variables, you can use histograms. For instance, if you want to visualze the distribution of weight of the cars.
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+hist(mtcars$wt)
+```
+
+* Some additional arguments you could manipulate:
+  + You can create your own break points with the `break` argument.
+  + `col`: specify the color to be used to fill the bars. If you assign `NULL`, it yields unfilled bars.
+  + `border`: the color of the border around the bars. 
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+hist(mtcars$wt, breaks = seq(1, 6, by = 0.5), 
+     col = "lightblue", border = "red", 
+     main = "Histogram of Weight (1000 lbs)",
+     xlab = "Weight")
+```
+
+**Example: Scatter Plot**
+
+If you want to show the relationship between two variables, you could draw a scatterplot. Here, I am using another
+built-in dataset called `state.x77`, which gives statistics, such as Population, income, illiteracy, Life expectancy
+etc of each US state. Here, I am using scatterplot to show the relationship between murder rate and life expectancy.
+The command to use is `plot()`. 
+
+```{r, eval=TRUE, results=TRUE}
+states <- data.frame(state.x77)
+str(states)
+```
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+plot(x = states$Murder, y = states$Life.Exp)
+```
+
+* Again, you could manipulating many arguments:
+  + `pch`: point shape (0-25). Check [R plot pch symbols](http://www.sthda.com/english/wiki/r-plot-pch-symbols-the-different-point-shapes-available-in-r)
+  + `cex`: the size of pch symbols.
+  + `col`: color to use for the points' border.
+  + `bg`: the background (fill) color for the open plot symbols. It can be used only when pch = 21:25.
+  + `lwd`: the line width for the plotting symbols.
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+plot(x = states$Murder, y = states$Life.Exp,
+     pch = 23, cex = 1.5, lwd = 2,
+     col = "blue", bg = "red", 
+     xlab = "Murder Rate", ylab = "Life Expectancy", 
+     main = "Murder Rate vs. Life Expectancy")
+```
+
+* What if you want to add a regression line?
+
+```{r, results=TRUE, fig.align="center", eval=TRUE}
+plot(x = states$Murder, y = states$Life.Exp,
+     pch = 23, cex = 1.5, lwd = 2,
+     col = "blue", bg = "red", 
+     xlab = "Murder Rate", ylab = "Life Expectancy", 
+     main = "Murder Rate vs. Life Expectancy")
+abline(lm(Life.Exp~Murder, data = states), lwd = 2)
+```
+
+### 2. What does `ggplot` work?
+
+* `ggplot` means the grammar of graphics
+* The recipe of a graph could include the following components:
+  + Tidy data (Each variable forms a column, each observation forms a row)
+  + Mapping "aesthetics" to the plot (like 'X' or 'Y' axis, the size of the marks, or the color)
+  + Geoms - geometric shapes on the plot
+  + Coordinate System
+  + Labels, guides, and other annotations
+  
+  One of the strengths of `ggplot2` package is that it makes your plot more attractive. 
+  
+  Like the other cheat sheets you might seen before (such as R Markdown, Base R etc.), the ggplot cheatsheet provides a very concise reference guide to ggplot. This cheat sheet will cover some content that introduced already or will be covered in the course, and some advanced topics or concepts that you need to learn by yourself. You could save it and used it as a quick reference. This Cheat Sheet was developed by the RStudio Team and you could download use the following links [ggplot2 Cheat Seet](https://github.com/rstudio/cheatsheets/blob/master/data-visualization-2.1.pdf).
+  
+You may want to load data from a SPSS file, or from other programs like SAS or Stata. The solution to load data with those formats is to use `haven` package. the haven package includes the functions to read from the following formats:
+
+* `read_sav`: SPSS
+* `read_sas`: SAS
+* `read_dta`: Stata
+
+You only need to install this package once.
+
+```{r haven package, eval=FALSE, include=TRUE}
+install.packages("haven")
+library(haven)
+```
+
+***
+
+#### 2.1 Scatter Plot
+
+I will be working with some data from the Cooperative Congressional Election Study, a major academic survey about
+American politics. CCES dataset consists of approximately 60 questions, with about 40 in the pre-election wave and
+about 20 in the post-election wave. These questions are included on all administered surveys and amount to a 30,000+
+person national sample survey.
+
+Here, I am using a random sample (1000 respondents) of this data from 2019 study. Also, I modified the dataset a lot
+to remove many survey questions. So, if want to do real analysis with dataset, you should download original data
+files, as well as code books from the CCES website [@DVN/WOT7O8_2020].
+
+```{r, eval=TRUE, include=TRUE, warning=FALSE, message=FALSE, results=FALSE}
+cces <- read_csv("../data/cces_sample.csv")
+glimpse(cces)
+```
+
+**Question:** Explore the relationship of Political Viewpoint and Job Approval of President Trump, grouped (colored) by their Party Affiliation. To understand the varibles I use, you should refer to the codebook.
+
+  + For the x-axis, use the variable "ideo5" (Political Viepoint: 1:5, higher means more conservative), for the y-axis, use the variable "CC18_308a" (Job Approval of President Trump: 1-4, higher number indicates disapprove)
+  + I recode the data for "pid7" variable and generate a new variable "party", which indicates the party
+affiliation, respondent with 1, 2, 3 are coded as "Democrat", respondent with 4 are coded as 
+"Independent", and respondent with 5, 6, 7 are coded as "Republican". This should be a categorical variable. Here, I use `recode_factor` command in `dplyr` package.
+  + Then, specify the color (using "party" variable) for each point.
+
+```{r, echo=FALSE, results=FALSE}
+cces$party <- recode_factor(cces$pid7, `1` = "Democrat", 
+                     `2` = "Democrat", `3` = "Democrat", 
+                     `4` = "Independent", `5` = "Republican", 
+                     `6` = "Republican", `7` = "Republican") # be careful to code it as factor, otherwise, it may become a quantitative variable
+is.factor(cces$party)
+```
+
+**See what happens here?**
+
+```{r, fig.align="center"}
+ggplot(cces, aes(x = ideo5, y = CC18_308a, col = party))+
+  geom_point()
+```
+
+We only have 20 points here but remember we have 1,000 survey respondents. We have an overplotting issue here because
+there are multiple observations for each combination of `ideo5` and `CC18_308a`. 
+
+**Solve Overplotting**
+
+`geom_jitter()` is a convenient short cut for `geom_point(position = "jitter)`. It adds a small amount of random
+variation (noise) to the location of each point, and is a useful way of handling overplotting issue.
+
+```{r, fig.align="center"}
+ggplot(cces, aes(x = ideo5, y = CC18_308a, col = party))+
+  geom_jitter()
+```
+
+* Let's finalize our scatterplot by adding more layers:
+
+  + We need to change color of each party. Use `scale_color_manual` command to set the colors, "Democrat" use blue, "Republican" use red, and "Independent" use yellow. You can simply create a vector as `values = c("blue, "yellow", "red")`.
+  + Change the axes labels and title use `labs()`.
+  + Remove Legend: People could understand what those colors mean.
+  + Try `theme()` function: customize your title, axes labels, axes ticks etc.
+
+```{r exercise1, fig.align='center'}
+g1 <- ggplot(cces, aes(x = ideo5, y = CC18_308a, col = party))+
+  geom_jitter(show.legend = FALSE)+
+  scale_color_manual(values = c("blue", "yellow", "red"))+
+  labs(x = "Political Viewpoint", y = "Job Approval of President Trump", 
+       title = "Political Viewpoint vs. Job Approval of President Trump grouped by Party Affiliation")+
+  theme(plot.title = element_text(size = 10, face = "bold", hjust = 0.5), 
+        axis.text.x = element_text(face = "bold"), 
+        axis.text.y = element_text(face = "bold"), 
+        axis.title.x = element_text(size = 10, face = "bold"), 
+        axis.title.y = element_text(size = 10, face = "bold"))
+g1
+```
+
+**Findings**
+
+The results are not surprising at all. Liberal respondents tend to disapprove President Trump's job, and
+they tends to identify themselves as Democrats. Conservative respondents tend to have higher support for
+President Trump's job, and more likely to be a "Republican". 
+
+**Export your graph**
+
+```{r, eval=FALSE}
+ggsave(filename = "scatterplot", plot = g1, device = "png")
+```
+
+
+#### 2.2 Boxplot: alterative way to show distribution of numerical variables
+
+**Question:** Explore the distribution of family annual income by Educational Level
+
+  + I recode "educ" variable as factor variable with levels (larger number means higher educational level). Here, I just the base R command `factor`.
+  + For the x-axis, use the variable "educ".
+  + For the y-axis, use the variable "faminc_new".
+  + Adjust title and axes' labels with `theme` command.
+
+```{r, echo=FALSE}
+cces$educ <- factor(cces$educ, levels = 1:6, 
+                    labels = c("No HS", "HS graduate", "Some college", 
+                               "2-year", "4-year", "Post-grad"), 
+                    ordered = TRUE)
+```
+
+
+```{r, fig.align="center"}
+ggplot(cces, aes(x = educ, y = faminc_new))+
+  geom_boxplot()
+```
+
+**Whisker**
+
+Usually, we add whiskers to the boxplot, which are the two lines outside the box that extend to the highest and lowest observation. By default, `geom_boxplot()` does not add whiskers, you should add and additional layer to the plot if you want whiskers.
+
+* Let's finalize our boxplot by adding more layers:
+
+```{r boxplot, fig.align="center"}
+ggplot(cces, aes(x = educ, y = faminc_new))+
+  stat_boxplot(geom = "errorbar", width = 0.15)+
+  geom_boxplot()+
+  labs(x = "Educational Level", y = "Family Annual Income", 
+       title = "Distribution of Family Annual Income by Educational Level",
+       caption = "Source: Cooperative Congressional Election Study 2019")+
+  theme_solarized()+
+  theme(plot.title = element_text(size = 10, face = "bold", hjust = 0.5),
+        axis.title.x = element_text(size = 10, face = "bold"), 
+        axis.title.y = element_text(size = 10, face = "bold"),
+        plot.caption = element_text(size = 8))
+```
+
+***
+
+### Reference
+
+
+
