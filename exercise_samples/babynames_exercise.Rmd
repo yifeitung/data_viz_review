@@ -222,9 +222,9 @@ ggplot(exercise1, aes(x = reorder(name, prop), y = prop, fill = sex))+
 
 ### Optional: Circle Packing Chart
 
-What I am doing here is to draw a `circle packing` chart with only one level of hierarchy. You just represent each entity or
-individual of your dataset with a circle, its size depending on a provided value. You need `packcircles` package to draw a
-circle packing chart.
+What I am doing here is to draw a `circle packing` chart with only one level of hierarchy. You just
+represent each entity or individual of your dataset with a circle, its size depending on a provided
+value. You need `packcircles` package to draw a circle packing chart. Check more about [circle packing](https://www.r-graph-gallery.com/305-basic-circle-packing-with-one-level.html) at R Graph Gallery.
 
 ```{r, eval=TRUE}
 # circleProgressiveLayout automatically creates a data frame with x and y centers for circles and radii, based on the values for the data you feed it.
@@ -344,5 +344,26 @@ babynames %>%
   theme_fivethirtyeight()+
   theme(plot.title = element_text(size = 10, face = "bold", hjust = 0.5))
 ```
+
+```{r, fig.align="center", eval=FALSE, echo=FALSE}
+babynames %>%
+  filter(name == "Mohammed" | name == "Ahmed") %>%
+  ggplot(aes(x = year, y = n, col = name))+
+  geom_line()+
+  scale_y_continuous("Count", limits = c(0, 650))+
+  scale_x_continuous("Year", limits = c(1880, 2017), breaks = seq(1880, 2017, by = 10))+
+  scale_color_manual("Name", values = c("red", "blue"))+
+  labs(title = "Babyname with Mohammed and Ahmed")+
+  theme_fivethirtyeight()+
+  theme(plot.title = element_text(size = 10, face = "bold", hjust = 0.5))
+```
+
+## Some Intersting Posts
+
+"Guessing the year you were born from aby names using R", by Jacqueline Nolis. [Read](https://towardsdatascience.com/guessing-the-year-you-were-born-from-baby-names-using-r-17c8cbb8d0a5). The author creates a simply shiny apps to make data interactive.
+
+"The Most Common Unisex Names in America: Is Yours One of Them?", by Andrew Flowers. [Read](https://fivethirtyeight.com/features/there-are-922-unisex-names-in-america-is-yours-one-of-them/). This post is quite similar with what I did here.
+
+
 
 
