@@ -14,6 +14,22 @@ QMSS GR5063 - Columbia University
 This is a repo for TA Review Section materials. Please let me know if you have any
 questions, you can simply raise questions by opening issues under this repo.
 
+**Spatial Data and Maps**
+
+#### Choropleth Map
+Choropleth map displays divided geographical areas or regions that are colored, shaded,
+or patterned in relation to a data variable. In the filed of political science, choropleth maps have been frequently used in election analysis.
+
+Below is an example that I made to compare 2018 local election and 2020 presidential election results in Taiwan Kaohsiung City.
+
+![kaohsiung](https://user-images.githubusercontent.com/38272447/106042058-94acee00-60aa-11eb-8956-c84a3bf767a8.png)
+
+Han Kuo-yu, the candidate of Chinese Nationalist Party (KMT, blue-colored), defeated his opponent Chen Chi-mai, the candidate of Democratic Progressive Party (DPP, green-colored), and was elected as Mayor of Kaohsiung in 2018's Taiwan local election. His victory was unexpected and surprising because Kaohsiung has long been considered as DPP's stronghold, and the last time KMT hold the Kaohsiung mayor position was 1998, almost 20 years ago.
+
+However, soon after Han took office as mayor, his supporters, also known as 'Han fans', prod him to run for 2020 Presidential Election. Han initially refused calls for him to contest KMT primary election but later joined, and won party's nomination. Many Kaohsiung residents were infuriated by Han's failure to keep his 2018 campaign promises and his decision to seek presidency. As you could see from the map, Han lost almost all of the regions he won in Kaohsiung in just 2 years.
+
+After Han lost presidential race, a recall movement started in Kaohsiung. 939,070 Kaohsiung residents voted in favor of recalling Han (more than the votes Han received when he was elected as mayor in 2018, which was 892,545) and Han became the first elected official to be recalled in Taiwan's democratic history.
+
 **Final Project Example**
 
 <img width="1316" alt="shiny_example" src="https://user-images.githubusercontent.com/38272447/105622382-3698b600-5ddf-11eb-91a0-82143dc0c960.png">
