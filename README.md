@@ -30,6 +30,16 @@ However, soon after Han took office as mayor, his supporters, also known as 'Han
 
 After Han lost presidential race, a recall movement started in Kaohsiung. 939,070 Kaohsiung residents voted in favor of recalling Han (more than the votes Han received when he was elected as mayor in 2018, which was 892,545) and Han became the first elected official to be recalled in Taiwan's democratic history.
 
+Another great example is U.S election. I made two choropleth maps, which both presents the 2020 U.S Presidential Election results. The first one is state-level and the second one is the county-level results.
+
+![2020_president_elections](https://user-images.githubusercontent.com/38272447/106251764-62eb7280-61e3-11eb-8f30-273423a80bdf.png)
+
+Many people are familiar with the first map because various TV channels and websites use it to cover the election night. The states are colored either in red or blue to indicate whether a majority of their voters voted for GOP candidate Donald Trump or Democratic candidate, Joe Biden. As you may see there is significantly more blue on this map. However, this map is not accurate because in some states, the election result are much closer than you might think.
+
+Nevertheless, if we look at the second map, it indeed shows an opposite pattern compared to the first one. The red areas appear overwhelmingly in the majority of areas. For people who are not familiar with American politics, if we show this map to them, they may assume GOP won the election.
+
+Now we know those two typical election maps are all somewhat misleading but they both presents the real data., why people still use them? One of the major reasons is that they are so visually attractive. If you are interested in election maps, please read this [article](https://www.washingtonpost.com/graphics/politics/2016-election/how-election-maps-lie/).
+
 **Final Project Example**
 
 <img width="1316" alt="shiny_example" src="https://user-images.githubusercontent.com/38272447/105622382-3698b600-5ddf-11eb-91a0-82143dc0c960.png">
