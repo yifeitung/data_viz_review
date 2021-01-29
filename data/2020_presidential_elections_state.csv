@@ -1,0 +1,52 @@
+"state","state_abbv","joe_biden_vote_share","donald_trump_vote_share","winner","net_trump"
+"ALABAMA","AL",0.37,0.62,"Donald Trump",0.25
+"ALASKA","AK",0.43,0.53,"Donald Trump",0.1
+"ARIZONA","AZ",0.49,0.49,"Joe Biden",0
+"ARKANSAS","AR",0.35,0.62,"Donald Trump",0.27
+"CALIFORNIA","CA",0.63,0.34,"Joe Biden",-0.29
+"COLORADO","CO",0.55,0.42,"Joe Biden",-0.13
+"CONNECTICUT","CT",0.59,0.39,"Joe Biden",-0.2
+"DELAWARE","DE",0.59,0.4,"Joe Biden",-0.19
+"DISTRICT OF COLUMBIA","DC",0.92,0.05,"Joe Biden",-0.87
+"FLORIDA","FL",0.48,0.51,"Donald Trump",0.03
+"GEORGIA","GA",0.49,0.49,"Joe Biden",0
+"HAWAII","HI",0.63,0.34,"Joe Biden",-0.29
+"IDAHO","ID",0.33,0.64,"Donald Trump",0.31
+"ILLINOIS","IL",0.58,0.41,"Joe Biden",-0.17
+"INDIANA","IN",0.41,0.57,"Donald Trump",0.16
+"IOWA","IA",0.45,0.53,"Donald Trump",0.08
+"KANSAS","KS",0.42,0.56,"Donald Trump",0.14
+"KENTUCKY","KY",0.36,0.62,"Donald Trump",0.26
+"LOUISIANA","LA",0.4,0.58,"Donald Trump",0.18
+"MAINE","ME",0.53,0.44,"Joe Biden",-0.09
+"MARYLAND","MD",0.65,0.32,"Joe Biden",-0.33
+"MASSACHUSETTS","MA",0.65,0.32,"Joe Biden",-0.33
+"MICHIGAN","MI",0.51,0.48,"Joe Biden",-0.03
+"MINNESOTA","MN",0.52,0.45,"Joe Biden",-0.07
+"MISSISSIPPI","MS",0.41,0.58,"Donald Trump",0.17
+"MISSOURI","MO",0.41,0.57,"Donald Trump",0.16
+"MONTANA","MT",0.41,0.57,"Donald Trump",0.16
+"NEBRASKA","NE",0.39,0.58,"Donald Trump",0.19
+"NEVADA","NV",0.5,0.48,"Joe Biden",-0.02
+"NEW HAMPSHIRE","NH",0.53,0.45,"Joe Biden",-0.08
+"NEW JERSEY","NJ",0.57,0.41,"Joe Biden",-0.16
+"NEW MEXICO","NM",0.54,0.43,"Joe Biden",-0.11
+"NEW YORK","NY",0.6,0.37,"Joe Biden",-0.23
+"NORTH CAROLINA","NC",0.49,0.5,"Donald Trump",0.01
+"NORTH DAKOTA","ND",0.32,0.65,"Donald Trump",0.33
+"OHIO","OH",0.45,0.53,"Donald Trump",0.08
+"OKLAHOMA","OK",0.32,0.65,"Donald Trump",0.33
+"OREGON","OR",0.56,0.4,"Joe Biden",-0.16
+"PENNSYLVANIA","PA",0.5,0.49,"Joe Biden",-0.01
+"RHODE ISLAND","RI",0.59,0.39,"Joe Biden",-0.2
+"SOUTH CAROLINA","SC",0.43,0.55,"Donald Trump",0.12
+"SOUTH DAKOTA","SD",0.36,0.62,"Donald Trump",0.26
+"TENNESSEE","TN",0.37,0.61,"Donald Trump",0.24
+"TEXAS","TX",0.46,0.52,"Donald Trump",0.06
+"UTAH","UT",0.38,0.58,"Donald Trump",0.2
+"VERMONT","VT",0.65,0.3,"Joe Biden",-0.35
+"VIRGINIA","VA",0.54,0.44,"Joe Biden",-0.1
+"WASHINGTON","WA",0.58,0.39,"Joe Biden",-0.19
+"WEST VIRGINIA","WV",0.3,0.69,"Donald Trump",0.39
+"WISCONSIN","WI",0.49,0.49,"Joe Biden",0
+"WYOMING","WY",0.26,0.69,"Donald Trump",0.43
