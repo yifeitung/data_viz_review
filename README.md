@@ -38,7 +38,13 @@ Many people are familiar with the first map because various TV channels and webs
 
 Nevertheless, if we look at the second map, it indeed shows an opposite pattern compared to the first one. The red areas appear overwhelmingly in the majority of areas. For people who are not familiar with American politics, if we show this map to them, they may assume GOP won the election.
 
-Now we know those two typical election maps are all somewhat misleading but they both presents the real data., why people still use them? One of the major reasons is that they are so visually attractive. If you are interested in election maps, please read this [article](https://www.washingtonpost.com/graphics/politics/2016-election/how-election-maps-lie/).
+Now we know those two typical election maps are all somewhat misleading but they both presents the real data. Why people still use them? One of the major reasons is that they are so visually attractive.
+
+Other questions you may raise in regarding to those two maps is that we only use two colors to fill every county, indicating the winner of each country. Nevertheless, this is also misleading because it assumes every voter in the county votes the same way. In reality, we know that each county contains both GOP supporters and Democratic Party supporters and by using two colors on the map, we lose a lot of information. For instance, we may care about which county went strongly for one candidate or the other , it is highly likely the voters are relatively evenly split in that county. When we face such an issue, a better way is to present the vote share difference (or net share) in the map like this:
+
+![vote_share_difference_2020](https://user-images.githubusercontent.com/38272447/106402415-58a1c200-63f7-11eb-86c3-2978663181af.png)
+
+If you are interested in election maps, please read this [article](https://www.washingtonpost.com/graphics/politics/2016-election/how-election-maps-lie/).
 
 **Final Project Example**
 
