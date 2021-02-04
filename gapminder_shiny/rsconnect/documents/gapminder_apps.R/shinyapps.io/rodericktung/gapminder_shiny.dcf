@@ -1,0 +1,12 @@
+name: gapminder_shiny
+title: gapminder_shiny
+username:
+account: rodericktung
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3512748
+bundleId: 4143118
+url: https://rodericktung.shinyapps.io/gapminder_shiny/
+when: 1611632419.30866
+asMultiple: FALSE
+asStatic: FALSE
