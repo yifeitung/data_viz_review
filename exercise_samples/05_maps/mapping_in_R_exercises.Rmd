@@ -1,0 +1,617 @@
+---
+title: "Mapping in R - selected exercises"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# World Map of Measles Vaccinations
+## World Development Indicators (WDI)
+
+For this exercise we will work with data from the World Development Indicators (WDI). Vincent Arel-Bundock provides a nice package for R that makes it easy to import the data. 
+
+```{r, message=FALSE}
+# install.packages("WDI")
+library(WDI)
+library(tidyverse)
+library(maps)
+library(ggmap)
+library(ggthemes)
+library(scales)
+library(ggpubr)
+library(countrycode)
+library(ggrepel)
+library(showtext)
+library(keyring)
+```
+
+## Select the data
+
+Let's get some data on measles vaccinations. `SH.IMM.MEAS` seems like a good fit. But feel free to use another variable you find interesting.
+
+```{r}
+WDIsearch('measles')
+```
+
+```{r}
+# There will be no data for year 2020, so here I am just using 2019 as an example
+df <- WDI(indicator = "SH.IMM.MEAS" ,
+         start = 2019, end = 2019, extra = F)
+df <- df %>%
+  filter(!is.na(SH.IMM.MEAS))
+```
+
+## Questions
+
+1. Use the map package and the measles data to make a world map of the share of infants vaccinated against measles.
+
+```{r}
+world_map <- map_data("world")
+world_map <- world_map %>%
+  rename(country = region) %>%
+  dplyr::select(-subregion)
+head(world_map)
+```
+
+```{r}
+# Check unique country names in geospatial data frame
+length(unique(world_map$country))
+# Check in measles dataset
+length(unique(df$country))
+# looks like we have more in geospatial data frame, measles data set also have a lot of regions
+```
+
+```{r, warning=FALSE}
+country_names <- sort(unique(world_map$country))
+# English to ISO
+country_iso2c <- countrycode::countrycode(country_names, origin = "country.name", destination = "iso2c")
+```
+
+```{r}
+country_combined <- data.frame(
+  country = country_names, 
+  iso2c = country_iso2c)
+world_map2 <- left_join(world_map, country_combined, by = "country")
+combined_df <- left_join(world_map2, df %>% select(-country), by = "iso2c")
+```
+
+```{r, fig.align="center", fig.width=8, fig.height=5.5}
+labels <- seq(0, 100, by = 20)
+labels <- paste(labels, "%", sep = "")
+ggplot(data = combined_df)+
+  geom_polygon(aes(x = long, y = lat, group = group, fill = SH.IMM.MEAS), color = "#FFFFFF")+
+  scale_fill_distiller(name = "Vaccinations (% of Children ages 12-23 months)", 
+                       type = "seq", palette = "YlGnBu", direction = "horizontal", 
+                       breaks = seq(0, 100, by = 20),
+                       limits = c(0, 100),
+                       guide = "colourbar", 
+                       labels = labels)+
+  theme_map()+
+  labs(title = "Share of Infants vaccinated against measles, 2019")+
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5))+
+  guides(fill = guide_colorbar(barwidth = 20, barheight = 1)) # Adjust your colorbar
+```
+
+```{r, include=FALSE}
+ggplot(data = combined_df)+
+  geom_polygon(aes(x = long, y = lat, group = group, fill = SH.IMM.MEAS), color = "#FFFFFF")+
+  scale_fill_distiller(name = "% of Children ages 12-23 months", 
+                       type = "seq", palette = "YlOrRd", direction = "horizontal", 
+                       breaks = seq(0, 100, by = 20),
+                       limits = c(0, 100),
+                       guide = "colourbar", 
+                       labels = labels)+
+  scale_y_continuous(breaks = (-2:2) * 30) +
+  scale_x_continuous(breaks = (-4:4) * 45) +
+  coord_map("ortho", orientation = c(61, 90, 0))+
+  theme_map()+
+  labs(title = "Share of Infants vaccinated against measles, 2019")+
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5))+
+  guides(fill = guide_colorbar(barwidth = 20, barheight = 1))
+```
+
+2. Install the package `countrycode()` and use the countrycode function to add a region indicator to the dataset. Create a world map faceted by your region indicator.
+
+**Facet**
+
+This will not be the best way to show because `facet_wrap` could not change scales smoothly for each of the region. You may need to write your own functions to adjust scales for each of the map. Here I am using different map projections for differnt maps and then combine those plots together.
+
+```{r}
+# Here I am using regions as defined in the United Nations
+combined_df2 <- combined_df %>%
+  mutate(region = countrycode::countrycode(country, origin = "country.name", destination = "un.region.name"))
+```
+
+```{r}
+# Africa
+africa <- ggplot(combined_df2 %>% filter(!is.na(region)))+
+  geom_polygon(aes(x = long, y = lat, group = group), color = "#FFFFFF")+
+  geom_polygon(data = combined_df2 %>% filter(!is.na(region) & region == "Africa"), 
+               aes(x = long, y = lat, group = group, fill = SH.IMM.MEAS), color = "#FFFFFF")+
+  scale_fill_distiller(name = "Vaccinations (% of Children ages 12-23 months)", 
+                       type = "seq", palette = "GnBu", direction = "horizontal", 
+                       breaks = seq(0, 100, by = 20),
+                       limits = c(0, 100),
+                       guide = "colourbar", 
+                       labels = labels)+
+  theme_map()+
+  labs(title = "Africa")+
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5))+
+  guides(fill = guide_colorbar(barwidth = 20, barheight = 1))+
+  coord_map("orthographic", orientation = c(-5.5, 20, 0)) # orientation: latitude, longitude, rotation
+```
+
+```{r}
+# Asia
+asia <- ggplot(combined_df2 %>% filter(!is.na(region)))+
+  geom_polygon(aes(x = long, y = lat, group = group), color = "#FFFFFF")+
+  geom_polygon(data = combined_df2 %>% filter(!is.na(region) & region == "Asia"), 
+               aes(x = long, y = lat, group = group, fill = SH.IMM.MEAS), color = "#FFFFFF")+
+  scale_fill_distiller(name = "Vaccinations (% of Children ages 12-23 months)", 
+                       type = "seq", palette = "GnBu", direction = "horizontal", 
+                       breaks = seq(0, 100, by = 20),
+                       limits = c(0, 100),
+                       guide = "colourbar", 
+                       labels = labels)+
+  theme_map()+
+  labs(title = "Asia")+
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5))+
+  guides(fill = guide_colorbar(barwidth = 20, barheight = 1))+
+  coord_map("orthographic", orientation = c(30, 95, 0))
+```
+
+```{r}
+# America
+america <- ggplot(combined_df2 %>% filter(!is.na(region)))+
+  geom_polygon(aes(x = long, y = lat, group = group), color = "#FFFFFF")+
+  geom_polygon(data = combined_df2 %>% filter(!is.na(region) & region == "Americas"), 
+               aes(x = long, y = lat, group = group, fill = SH.IMM.MEAS), color = "#FFFFFF")+
+  scale_fill_distiller(name = "Vaccinations (% of Children ages 12-23 months)", 
+                       type = "seq", palette = "GnBu", direction = "horizontal", 
+                       breaks = seq(0, 100, by = 20),
+                       limits = c(0, 100),
+                       guide = "colourbar", 
+                       labels = labels)+
+  theme_map()+
+  labs(title = "Americas")+
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5))+
+  guides(fill = guide_colorbar(barwidth = 20, barheight = 1))+
+  coord_map("orthographic", orientation = c(15, -90, 5))
+```
+
+```{r}
+# Europe
+europe <- ggplot(combined_df2 %>% filter(!is.na(region)))+
+  geom_polygon(aes(x = long, y = lat, group = group), color = "#FFFFFF")+
+  geom_polygon(data = combined_df2 %>% filter(!is.na(region) & region == "Europe"), 
+               aes(x = long, y = lat, group = group, fill = SH.IMM.MEAS), color = "#FFFFFF")+
+  scale_fill_distiller(name = "Vaccinations (% of Children ages 12-23 months)", 
+                       type = "seq", palette = "GnBu", direction = "horizontal", 
+                       breaks = seq(0, 100, by = 20),
+                       limits = c(0, 100),
+                       guide = "colourbar", 
+                       labels = labels)+
+  theme_map()+
+  labs(title = "Europe")+
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5))+
+  guides(fill = guide_colorbar(barwidth = 20, barheight = 1))+
+  coord_map("orthographic", orientation = c(70, 50, 5))
+```
+
+```{r}
+# Oceania
+oceania <- ggplot(combined_df2 %>% filter(!is.na(region)))+
+  geom_polygon(aes(x = long, y = lat, group = group), color = "#FFFFFF")+
+  geom_polygon(data = combined_df2 %>% filter(!is.na(region) & region == "Oceania"), 
+               aes(x = long, y = lat, group = group, fill = SH.IMM.MEAS), color = "#FFFFFF")+
+  scale_fill_distiller(name = "Vaccinations (% of Children ages 12-23 months)", 
+                       type = "seq", palette = "GnBu", direction = "horizontal", 
+                       breaks = seq(0, 100, by = 20),
+                       limits = c(0, 100),
+                       guide = "colourbar", 
+                       labels = labels)+
+  theme_map()+
+  labs(title = "Oceania")+
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5))+
+  guides(fill = guide_colorbar(barwidth = 20, barheight = 1))+
+  coord_map("orthographic", orientation = c(-35, 135, 0))
+```
+
+```{r, fig.align="center", warning=FALSE, message=FALSE, fig.width=9.5, fig.height=6}
+ggpubr::ggarrange(africa, asia, america, europe, oceania, common.legend = TRUE, legend = "bottom", ncol = 5)
+```
+
+# Locations of Fortune 500 companies
+
+## Where are the Fortune 500 headquarters
+
+For this exercise, we want to create a map of where the Fortune 500 companies - that is the five hundred largest U.S. corporations by total revenue - have their headquarters. 
+
+## Addresses
+
+Let's get the addresses here: https://www.geolounge.com/fortune-500-list-by-state-for-2015/
+
+```{r, eval=FALSE}
+library(XML)
+library(RCurl)
+fortune500_url <- getURL("https://www.geographyrealm.com/fortune-500-list-by-state-for-2015/",.opts = list(ssl.verifypeer = FALSE) )  # We needs this because the site is https
+fortune500 = readHTMLTable(fortune500_url, header = TRUE, which = 1)
+colnames(fortune500) <- tolower(colnames(fortune500))
+fortune500 <- subset(fortune500, select=c("company","streetadd","place","state","zip"))
+write.csv(fortune500, "fortune500.csv")
+```
+
+## Load the associated file of addresses 
+
+Load the list of Fortune 500 companies (in 2015).
+
+```{r, warning=FALSE, message=FALSE}
+fortune500 <- read_csv("fortune500.csv")[, -1]
+```
+
+## Task 1: Make a map by state
+
+**Task**: 
+Aggregate the number of headquarters by state. Make a map in which the states are shaded by their number of Fortune 500 companies
+
+Use `dplyr()` for the aggregation and the `maps()` package for a map of the U.S. with state boundaries. 
+```{r}
+companies_by_state <- fortune500 %>%
+  group_by(state) %>%
+  count() %>%
+  ungroup() %>%
+  arrange(desc(n))
+```
+
+```{r}
+us_states <- map_data("state")
+us_states <- us_states %>%
+  dplyr::select(-subregion) %>%
+  rename(state = region)
+```
+
+```{r}
+# Change first letter of U.S state to uppercase
+us_states$state <- str_to_title(us_states$state)
+```
+
+```{r}
+# Check if there is unmatched names
+unique(companies_by_state$state) %in% unique(us_states$state)
+```
+
+```{r}
+# District of Columbia name does not match
+unique(companies_by_state$state)[33]
+```
+
+```{r}
+sort(unique(us_states$state)) %in% sort(unique(companies_by_state$state))
+```
+
+```{r}
+sort(unique(us_states$state))[c(8, 18, 23, 25, 28, 30, 33, 40, 44, 47, 49)]
+```
+
+```{r}
+us_states <- us_states %>%
+  mutate(state = ifelse(state == "District Of Columbia", 
+                        "District of Columbia", 
+                        state))
+```
+
+```{r}
+# Merge dataset
+us_states <- left_join(us_states, companies_by_state, by = "state")
+```
+
+```{r, fig.align="center"}
+ggplot(us_states)+
+  geom_polygon(aes(x = long, y = lat, group = group, fill = n), color = "#FFFFFF")+
+  scale_fill_gradient2(name = "Number of Fortune 500 Companies", 
+                       low = "#e5f5e0", mid = "#a1d99b", high = "#31a354", 
+                       na.value = "grey50",
+                       breaks = seq(0, 60, 10),
+                       limits = c(0, 60),
+                       guide = "colourbar")+
+  theme_map()+
+  guides(fill = guide_colorbar(barwidth = 10, barheight = 1))+
+  labs(title = "Number of Fortune 500 Companies by State")+
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 10, face = "bold", hjust = 0.5))
+```
+
+There are 10 Continental U.S states that do not have Fortune 500 Companies.
+
+## Task 2: Tax Rates by State
+
+**Task**: 
+We also got some info on top corporate income tax rates by state. Import sheet 2 of the file `State_Corporate_Income_Tax_Rates_2015.xlsx` and make a map shaded by top corporate income tax rates. 
+
+```{r}
+library(readxl)
+state_income_tax <- read_xlsx("State_Corporate_Income_Tax_Rates_2015.xlsx", sheet = 2)
+head(state_income_tax, 5)
+```
+
+```{r}
+# Here I am using another package, which could plot Alaska and Hawaii
+library(usmap)
+us_states2 <- usmap::us_map(regions = "states") %>%
+  rename(state = full)
+```
+
+```{r}
+# Check if there is unmatched states' names
+sort(unique(state_income_tax$state)) %in% sort(unique(us_states2$state))
+```
+
+```{r}
+sort(unique(us_states2$state)) %in% sort(unique(state_income_tax$state))
+```
+
+```{r}
+sort(unique(state_income_tax$state))[8]
+sort(unique(us_states2$state))[9]
+```
+
+```{r}
+state_income_tax <- state_income_tax %>%
+  mutate(state = ifelse(state == "D.C.", 
+                        "District of Columbia", 
+                        state))
+```
+
+```{r}
+us_states2 <- left_join(us_states2, state_income_tax, by = "state")
+```
+
+```{r, fig.align="center"}
+ggplot(us_states2)+
+  geom_polygon(aes(x = x, y = y, group = group, fill = topcorpinctax), color = "#FFFFFF")+
+  scale_fill_gradient2(name = "Corporate Income Tax Rates by State", 
+                       low = "#fee0d2", 
+                       mid = "#fc9272", 
+                       high = "#de2d26", 
+                       limits = c(0, 0.12),
+                       labels = scales::percent)+
+  labs(title = "Top Corporate Income Tax Rates by State")+
+  theme_map()+
+  coord_equal()+
+  guides(fill = guide_colorbar(barwidth = 12, barheight = 1))+
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 10, face = "bold", hjust = 0.5))
+```
+
+## Task 3: Scatter plot of income tax rates and # of headquarters
+
+Is there evidence of companies being headquartered in low tax states? 
+
+```{r}
+sort(unique(companies_by_state$state)) %in% sort(unique(state_income_tax$state))
+```
+
+```{r}
+# Merge Dataset
+mydata <- left_join(companies_by_state, state_income_tax, by = "state")
+head(mydata)
+```
+
+```{r}
+state_names <- tibble(state = state.name) %>%
+  bind_cols(tibble(abbr = state.abb)) %>%
+  bind_rows(tibble(state = "District of Columbia", 
+                   abbr = "DC"))
+```
+
+```{r}
+sort(mydata$state) %in% sort(state_names$state)
+```
+
+```{r}
+mydata <- left_join(mydata, state_names, by = "state")
+```
+
+```{r, echo=FALSE}
+showtext_auto()
+font_add_google("Montserrat")
+```
+
+```{r, fig.align="center"}
+ggplot(data = mydata, aes(x = topcorpinctax, y = n))+
+  geom_point(color = "#c51b8a", alpha = 0.5)+
+  geom_text_repel(aes(label = abbr))+
+  geom_smooth(method = "loess", se = FALSE)+
+  scale_x_continuous(labels = scales::percent)+
+  scale_y_continuous(limits = c(0, 60), 
+                     breaks = seq(0, 60, 20))+
+  labs(title = "Number of Fortune 500 Companies vs. State Corporate Income Tax")+
+  theme_fivethirtyeight()+
+  theme(plot.title = element_text(size = 12, hjust = 0, family = "Montserrat"))
+```
+
+**Task**: 
+1. Make a scatter plot with a loess function estimating the relationship between corporate income tax rates (x-axis) and # of headquarters (y-axis). 
+2. What happens if we account for state population (i.e use HQs per capita)? Import the data on state populations from Wikipedia: https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_population. Use the function `readHTMLTable()` from the package `XML` to import the data and merge it on. Re-do the scatter plot from part 1. 
+
+```{r}
+library(XML)
+library(RCurl)
+```
+
+```{r}
+us_population_url <- getURL("https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_population")
+# Third Table of Wikipedia page
+state_population <- readHTMLTable(us_population_url, header = FALSE, which = 3, skip.rows = 1)
+```
+
+```{r}
+# Use only 2019 Population
+state_population <- state_population %>%
+  rename(state = V1, 
+         pop2019 = V3) %>%
+  filter(state %in% unique(mydata$state)) %>%
+  dplyr::select(state, pop2019)
+head(state_population)
+```
+
+```{r}
+# Merge Data set again
+mydata2 <- left_join(mydata, state_population, by = "state")
+str(mydata2) # population is string
+```
+
+```{r}
+mydata2$pop2019 <- gsub(pattern = "\\,", replacement = "", x = mydata2$pop2019)
+mydata2$pop2019 <- as.numeric(mydata2$pop2019)
+str(mydata2)
+```
+
+```{r}
+# change population scales: millions
+mydata2$pop2019 <- mydata2$pop2019/1000000
+```
+
+```{r, fig.align='center'}
+ggplot(mydata2, aes(x = topcorpinctax, y = n/pop2019))+
+  geom_point(aes(size = pop2019), color = "#c51b8a", alpha = 0.5)+
+  geom_text_repel(aes(label = abbr))+
+  scale_size_continuous(range = c(0.1, 8))+
+  scale_x_continuous(labels = scales::percent)+
+  scale_y_continuous("Number of Fortune 500 Companies per Million of People", limits = c(0, 5))+
+  geom_smooth(method = "loess", se = FALSE)+
+  ggtitle("Number of Fortune 500 Companies per Million of People vs. State Corporate Income Tax")+
+  guides(size = FALSE)+
+  theme_fivethirtyeight()+
+  theme(axis.title.y = element_text(size = 8, face = "bold"), 
+        plot.title = element_text(size = 9, hjust = 0, family = "Montserrat"))
+```
+
+## Geocoding
+
+Now, let's get the Latitude and Longitude coordinates of all these addresses of the HQ addresses. Fortunately, ggmap() does this for us nicely.
+
+```{r, eval=FALSE}
+# This is Walmart's HQ address:
+geocode("702 S.W. Eighth St. Bentonville Arkansas 72716", output = "latlon" , source = "google")
+```
+
+## Task 4: Geocode headquarter locations and add to the plot
+
+**Task**: 
+1. Geocode the locations of all headuarters in the sample. Add the locations of the headquarters as points to the map from part 2 (U.S. state map shaded by top corporate income tax rates).
+
+2. Add a label with the company names. Use ggrepel() if the labels overlap too much.
+
+I would say don't try this. This could make your graph looks very terrible
+
+3. Size the points by the ranking on the Fortune 500 list (we don't have revenue here, so the rank will have to do). 
+
+```{r, message=FALSE, warning=FALSE}
+fortune500_geocodes <- read_csv("fortune500_geocodes.csv")
+```
+
+```{r, warning=FALSE, message=FALSE}
+# Load packages
+library(leaflet)
+library(htmltools)
+library(rgdal)
+library(leaflet.providers)
+```
+
+```{r}
+# Load shape files
+states <- readOGR("cb_2016_us_state_500k/cb_2016_us_state_500k.shp")
+```
+
+```{r, results = FALSE}
+# Make Sure 2 data frames states names are matching
+sort(unique(states$name))
+# Looks like state income tax states name are matching
+is.element(state_income_tax$state, states$name)
+```
+
+```{r}
+is.element(states$name, state_income_tax$state)
+which(is.element(states$name, state_income_tax$state) == FALSE)
+```
+
+```{r}
+states$name[c(43, 44, 45, 48, 49)]
+```
+
+```{r}
+# Let's remove those regions from shape file
+states <- subset(states, name %in% state_income_tax$state)
+```
+
+```{r}
+# Reorder data file to match our shape file
+state_income_tax <- state_income_tax[order(match(state_income_tax$state, states$name)), ]
+```
+
+```{r}
+# Looks like they are matching now
+head(state_income_tax$state)
+head(states$name)
+```
+
+```{r}
+range(state_income_tax$topcorpinctax)
+bins <- seq(0.00, 0.12, by = 0.02)
+bins
+pal <- colorBin("Greens", domain = state_income_tax$topcorpinctax, bins = bins)
+```
+
+```{r}
+fortune500_geocodes <- fortune500_geocodes %>%
+  mutate(rank = row_number(), 
+         size = rev(row_number()))
+```
+
+```{r}
+fortune500_geocodes$label <- paste("Company:", fortune500_geocodes$company, "<br>",
+                                   "State:", fortune500_geocodes$state, "<br>", 
+                                   "Rank:", fortune500_geocodes$rank)
+```
+
+```{r, fig.align="center", fig.width=8.5, fig.height=6}
+leaflet() %>%
+  addProviderTiles(providers$Esri.WorldGrayCanvas) %>%
+  setView(lng = -96, lat = 37.8, zoom = 4) %>%
+  addPolygons(data = states, 
+              weight = 1, 
+              smoothFactor = 0.5, 
+              color = "#FFFFFF", 
+              fillColor = pal(state_income_tax$topcorpinctax), 
+              fillOpacity = 0.8) %>%
+  addCircleMarkers(lng = fortune500_geocodes$lon, 
+                   lat = fortune500_geocodes$lat, 
+                   color = "#F0810F", 
+                   weight = 1, 
+                   radius = (fortune500_geocodes$size)^(0.5), 
+                   label = lapply(fortune500_geocodes$label, HTML), 
+                   labelOptions = list(textsize = "12px"))
+```
+
+
+
+
+
+
+
+
+
+
+
