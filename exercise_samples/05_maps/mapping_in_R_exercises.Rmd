@@ -582,6 +582,8 @@ fortune500_geocodes <- fortune500_geocodes %>%
 
 ```{r}
 fortune500_geocodes$label <- paste("Company:", fortune500_geocodes$company, "<br>",
+                                   "Address:", fortune500_geocodes$streetadd, "<br>",
+                                   "City:", fortune500_geocodes$place, "<br>",
                                    "State:", fortune500_geocodes$state, "<br>", 
                                    "Rank:", fortune500_geocodes$rank)
 ```
@@ -602,7 +604,8 @@ leaflet() %>%
                    weight = 1, 
                    radius = (fortune500_geocodes$size)^(0.5), 
                    label = lapply(fortune500_geocodes$label, HTML), 
-                   labelOptions = list(textsize = "12px"))
+                   labelOptions = list(textsize = "12px"), 
+                   clusterOptions = markerClusterOptions())
 ```
 
 
