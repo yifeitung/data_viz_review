@@ -1,0 +1,720 @@
+---
+title: "Assignment 2: Mapping Parking Violations in NYC"
+author: Yifei Dong
+date: 2021-03-09
+always_allow_html: yes
+output: 
+  html_document:
+    keep_md: false
+---
+
+Parking Violations in NYC
+================================
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggmap)
+library(keyring)
+library(leaflet)
+library(leaflet.extras)
+library(htmltools)
+library(RColorBrewer)
+library(rgdal)
+library(readxl)
+library(scales)
+library(ggthemes)
+library(rebus)
+library(DT)
+```
+
+## Data
+
+For this assignment, we are going to investigate data on parking violations in NYC. 
+
+#### Parking violations in 2020/21
+
+NYC Open Data has data on all [parking violations issued in NYC](https://data.cityofnewyork.us/City-Government/Parking-Violations-Issued-Fiscal-Year-2021/pvqr-7yc4) since 2014. The updated dataset provided for 2021 currently includes about 10 million observations. To make the assignment manageable, I have reduced it to a subset of tickets issued in from Jan 2020 to Jan 2021 and by Manhattan precincts only, yielding about 2.2M tickets.
+
+Two support files are also included in the `parking` sub folder:
+
+  - the **descriptions of all variables**
+  - the **dictionary of violation codes**
+  
+#### Police Precincts
+
+A second data source is the [shape files of police precincts in NYC](https://www1.nyc.gov/site/planning/data-maps/open-data/districts-download-metadata.page). 
+
+## Exercise
+
+##### 1. Data exploration
+
+Before focusing on the spatial part of the data, let's explore the basic patterns in the data. 
+
+##### a) Violation Code and Fine Amounts
+
+Add the violation code descriptions and fine amounts to the data file. Provide a visual overview of the top 10 most common types of violations (feel free to group them into categories if reasonable). Compare how this ranking differs if we focus on the total amount of revenue generated.
+
+```{r, warning=FALSE, message=FALSE}
+parking_violations <- read_csv("data/parking/parkingNYC_Jan2020-Jan2021.csv")
+violation_code_fine <- read_excel("data/parking/ParkingViolationCodes_January2020.xlsx", sheet = 1)
+```
+
+```{r}
+# Check violation codes
+sort(unique(parking_violations$`Violation Code`))
+sort(unique(violation_code_fine$`VIOLATION CODE`))
+length(sort(unique(parking_violations$`Violation Code`)))
+length(sort(unique(violation_code_fine$`VIOLATION CODE`)))
+# Looks like we have more violation code in Excel files
+```
+
+```{r}
+mydata <- left_join(parking_violations, violation_code_fine, by = c("Violation Code" = "VIOLATION CODE"))
+head(mydata)
+```
+
+```{r}
+summary1 <- mydata %>%
+  group_by(`VIOLATION DESCRIPTION`) %>%
+  tally() %>%
+  ungroup() %>%
+  arrange(desc(n)) %>%
+  top_n(10, wt = n)
+```
+
+```{r, fig.align='center'}
+summary1 %>%
+  ggplot(aes(x = reorder(`VIOLATION DESCRIPTION`, n), y = n, fill = `VIOLATION DESCRIPTION`))+
+  geom_bar(stat = "identity")+
+  scale_y_continuous("Frequency", labels = scales::comma)+
+  coord_flip()+
+  guides(fill = FALSE)+
+  labs(title = "Top 10 Parking Violations in NYC 2020", 
+       caption = "Source: NYC Open Data")+
+  theme_fivethirtyeight()+
+  theme(plot.title = element_text(hjust = 0, size = 11))
+```
+
+To better calculate the total amount of revenue generated. It is necessary to dig into where those tickets are issued. There is an variable `Violation Precinct`, which indicates the precinct that violation happens. Due to the fact that the fine amount differs depending on whether it happens at `Manhattan 96th St. & below` or `All Other Areas`. I am going to identify the fine amount based on the `Violation Precinct`. You can check this article [Smoking Marijuana in Public: The Spatial and Policy Shift in New York City Arrests, 1992-2003](https://www.researchgate.net/publication/247923137_Smoking_Marijuana_in_Public_The_Spatial_and_Policy_Shift_in_New_York_City_Arrests_1992-2003).
+
+```{r}
+below_96 <- c(1, 5, 7, 6, 9, 10, 13, 14, 17, 18, 19, 20, 22, 23, 24)
+```
+
+```{r}
+colnames(mydata)[49] <- "manhattan_96_below"
+colnames(mydata)[50] <- "all_other_areas"
+colnames(mydata)[15] <- "violation_precinct"
+colnames(mydata)[16] <- "issuer_precinct"
+```
+
+```{r}
+# Decide fine amount based on violation precinct
+mydata$fine <- ifelse(mydata$violation_precinct %in% below_96, 
+                     mydata$manhattan_96_below, 
+                     mydata$all_other_areas)
+```
+
+```{r}
+summary2 <- mydata %>%
+  filter(!is.na(`VIOLATION DESCRIPTION`)) %>%
+  group_by(`VIOLATION DESCRIPTION`) %>%
+  summarise(total_revenue = sum(fine)) %>%
+  ungroup() %>%
+  arrange(desc(total_revenue)) %>%
+  top_n(10, wt = total_revenue)
+```
+
+```{r, fig.align='center'}
+summary2 %>%
+  ggplot(aes(x = reorder(`VIOLATION DESCRIPTION`, total_revenue), 
+             y = total_revenue, 
+             fill = `VIOLATION DESCRIPTION`))+
+  geom_bar(stat = "identity")+
+  labs(title = "TOP 10 Most-Paying Parking Violations in NYC in 2020", 
+       caption = "Source: NYC Open Data")+
+  scale_y_continuous(labels = scales::comma)+
+  coord_flip()+
+  theme_fivethirtyeight()+
+  guides(fill = FALSE)+
+  theme(plot.title = element_text(size = 11, hjust = 0))
+```
+
+```{r}
+# Remove those with no violation description
+mydata <- mydata %>%
+  filter(!is.na(`VIOLATION DESCRIPTION`))
+```
+
+##### b) Average amount of fine by vehicle
+
+Compare the average amount of fine by vehicle color, vehicle year, and [vehicle plate type](https://dmv.ny.gov/registration/registration-class-codes) [Hint: it is sufficient to restrict your attention to commercial (`COM`) and passenger (`PAS`) vehicles]? Briefly describe your findings.
+
+Let's first deal with vehicle colors.
+
+```{r}
+# Check Unique Vehicle Colors in our dataset
+sort(unique(mydata$`Vehicle Color`))
+```
+
+```{r}
+# First remove replace those with no clear color code as NA
+mydata$`Vehicle Color` <- ifelse(mydata$`Vehicle Color` == ".-", 
+                                 NA, 
+                                 mydata$`Vehicle Color`)
+```
+
+```{r}
+# Remove Special Characters
+mydata$`Vehicle Color` <- str_replace_all(string = mydata$`Vehicle Color`, 
+                                          pattern = char_class("./ "), 
+                                          replacement = "")
+```
+
+```{r}
+sort(unique(mydata$`Vehicle Color`))
+```
+
+```{r}
+# Create color vectors
+black <- c("B", "BACK", "BALCK", "BCK", "BK", "BLA", "BLAC", "BLACK", "BLAK", "BLC", 
+           "BLCK", "BLK", "DK")
+blue <- c("BL", "BU", "BLU", "BLUE", "BUL", "LTB", "LTBLU", "NVBLU", "NVYBL", "NAVY", "TEAL", 
+          "WHB", "WHBL", "DKB")
+brown <- c("BN", "BR", "BRN", "BBRW", "BRNW", "BRO", "BRON", "BRONZ", "BROW", "BROWN", 
+           "BRW", "BRWN", "BRWON", "BW", "BWN", "TAN", "TN", "TNG")
+white <- c("W", "WH", "WHE", "WHI", "WHIE", "WHIT", "WHITE","WHITW", 
+           "WHO", "WHT", "WHTE", "WHTIE", "WI", 
+           "WT", "WTE", "WTH", "WWT", "PEARL")
+yellow <- c("Y", "YE", "YEL", "YELL", "YELLO", "YL", "YLL", "YLLW", "YLW", "YW", 
+            "GL", "GLD", "GLO", "GOLD", "GD")
+green <- c("GRE", "GREE", "GREEN", "GREG", "GREN", "GREU", "WHG", "GN", "GRN", 
+           "DKGN", "DKG", "DRKGR", "DARKG","LTG", "OLIVE", "BRG")
+orange <- c("OR", "ORA", "ORANG", "ORG", "ORGE", "ORN")
+red <- c("R", "RD", "RE", "RED", "RDG", "BUR", "BUG", "BURG", 
+         "BURGE", "BURGU", "BURUN", "DARKR", "DKR",
+         "MAR", "MARO", "MAROO", "MR")
+grey <- c("G", "GARY", "GAY", "GERY", "GEY", "GR", "GRA", "GRAAY", "GRANG", "GRAY", 
+          "GREY", "GRFAY", "GRRY", "GRY", "GY", "DKGRY", "DKGY")
+sliver <- c("S", "SIL", "SILER", "SILV", "SILVE", 
+            "SILVR", "SIV", "SIVER", "SIVR", "SL", "SLATE", "SLIVE", "SLR", "SLV", 
+            "SLVER", "SLVR", "SR", "SV")
+purple <- c("PR", "PRPL", "PURP", "PURPL", "LAVEN", "PURPLE")
+pink <- c("PINK", "PK", "PKGRY", "DKP", "LTP")
+beige <- c("BAIGE", "BEGE", "BEIG", "BEIGE", "BEING", "BERG", "BERGU", "BG", "BGE", 
+           "BI", "BIEGE", "BIERG", "BRIGE")
+```
+
+```{r}
+# Replace color
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(black) %R% END, 
+                                      replacement = "black")
+```
+
+```{r}
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(blue) %R% END, 
+                                      replacement = "blue")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(brown) %R% END, 
+                                      replacement = "brown")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(white) %R% END, 
+                                      replacement = "white")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(yellow) %R% END, 
+                                      replacement = "yellow")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(green) %R% END, 
+                                      replacement = "green")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(orange) %R% END, 
+                                      replacement = "orange")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(red) %R% END, 
+                                      replacement = "red")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(grey) %R% END, 
+                                      replacement = "grey")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(sliver) %R% END, 
+                                      replacement = "sliver")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(purple) %R% END, 
+                                      replacement = "purple")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(pink) %R% END, 
+                                      replacement = "pink")
+mydata$`Vehicle Color` <- str_replace(string = mydata$`Vehicle Color`, 
+                                      pattern = START %R% or1(beige) %R% END, 
+                                      replacement = "beige")
+```
+
+```{r}
+sort(unique(mydata$`Vehicle Color`))
+```
+
+```{r}
+selected_colors <- c("black", "blue", "brown", "white", "yellow", "green", 
+            "orange", "red", "grey", "sliver", "purple", "pink", "beige")
+mydata2 <- mydata %>%
+  filter(`Vehicle Color` %in% selected_colors)
+```
+
+```{r, fig.align='center'}
+mydata2 %>%
+  group_by(`Vehicle Color`) %>%
+  summarise(average_fine = mean(fine)) %>%
+  ungroup() %>%
+  arrange(desc(average_fine)) %>%
+  mutate(`Vehicle Color` = str_to_title(`Vehicle Color`)) %>%
+  ggplot(aes(x = reorder(`Vehicle Color`, -average_fine), y = average_fine, 
+             fill = `Vehicle Color`))+
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("Brown" = "#763626", "Green"="#3F681C", 
+                               "Pink"="pink", "Yellow"="#F9DC24", "White"="white", 
+                               "Orange"="#F0810F", "Red"="red", "Sliver"="#C0C0C0", 
+                               "Purple"="#800080", "Black"="black", 
+                               "Grey"="grey60", "Beige"="#CFB997", "Blue"="#4CB5F5"))+
+  labs(title = "Average Fine Amount vs. Vehicle Color", 
+       x = "Vehicle Color", y = "Average Fine Amount")+
+  theme_fivethirtyeight()+
+  guides(fill = FALSE)+
+  theme(plot.title = element_text(size = 11, hjust = 0))
+```
+
+Then, we deal with Average Fine Amount v.s Vehicle Year
+
+```{r, fig.align="center"}
+mydata2 %>%
+  filter(`Vehicle Year`> 0 & `Vehicle Year` <= 2020) %>%
+  group_by(`Vehicle Year`) %>%
+  summarise(average_fine = mean(fine)) %>%
+  ungroup() %>%
+  ggplot(aes(x = `Vehicle Year`, y = average_fine))+
+  geom_line()+
+  labs(title = "Average Fine Amount vs. Vehicle Year")+
+  theme_fivethirtyeight()+
+  theme(plot.title = element_text(size = 11, face = "bold", hjust = 0.5))
+```
+
+Finally, we look at Average Fine Amount vs. Vehicle Plate Type
+
+```{r, fig.align='center'}
+mydata2 %>%
+  filter(`Plate Type` %in% c("COM", "PAS")) %>%
+  group_by(`Plate Type`) %>%
+  summarise(average_fine = mean(fine)) %>%
+  ungroup() %>%
+  ggplot(aes(x = `Plate Type`, y = average_fine, fill = `Plate Type`))+
+  geom_bar(stat = "identity")+
+  guides(fill = FALSE)+
+  scale_x_discrete(labels = c("Commerical", "Passenger"))+
+  scale_y_continuous(limits = c(0, 100))+
+  ggtitle("Average Fine Amount vs. Plate Type")+
+  theme_fivethirtyeight()+
+  theme(plot.title = element_text(size = 11, face = "bold", hjust = 0.5))
+```
+
+##### c) Effect of COVID
+
+Let's see if we can observe the effect of COVID restrictions on parking violations. Present a visualization that shows how parking violations changed after the New York statewide stay-at-home order on March 14, 2020. Make sure the visualization clearly highlights the main pattern (the COVID effect).
+
+The `Issue Date` is not a in standard POSIXlt form, so we need to change it first.
+
+```{r}
+mydata$`Issue Date` <- lubridate::mdy(mydata$`Issue Date`)
+class(mydata$`Issue Date`)
+```
+
+```{r, fig.align='center'}
+mydata %>%
+  filter(`Issue Date` >= as.Date("2020-01-01") & `Issue Date` <= as.Date("2021-01-01")) %>%
+  mutate(month = lubridate::month(`Issue Date`), 
+         year = lubridate::year(`Issue Date`), 
+         period = str_c(month, year, sep = "-")) %>%
+  mutate(period = lubridate::my(period)) %>%
+  group_by(period) %>%
+  tally() %>%
+  ungroup() %>%
+  ggplot(aes(x = period, y = n, group = 1))+
+  geom_line()+
+  geom_segment(x = as.Date("2020-03-14"), 
+               xend = as.Date("2020-03-14"),
+               y = 0, 
+               yend = 340000,
+               color = "blue", linetype = "dashed")+
+  scale_y_continuous(labels = scales::comma)+
+  geom_text(label = "NYC Stay-at-Home Order", x = as.Date("2020-03-14"), y = 350000, 
+            color = "red")+
+  labs(title = "Number of Parking Violations in NYC, 2020", 
+       caption = "Source: NYC Open Data")+
+  theme_fivethirtyeight()+
+  theme(plot.title = element_text(size = 11, hjust = 0))
+```
+
+```{r}
+# Remove some vectors
+remove(beige, below_96, black, blue, brown, green, grey, orange, pink, purple, 
+       sliver, white, yellow, red, selected_colors)
+```
+
+#### 2. Map by Precincts
+
+Read in the shape files for the police precincts and remove all precincts outside of Manhattan. 
+
+##### a) Number of tickets, total fines, and average fines
+
+Provide three maps that show choropleth maps of:
+
+  - the total number of tickets 
+  - the total amount of fines 
+  - the average amount of fines
+  
+Briefly describe what you learn from these maps in comparison.
+
+```{r}
+register_google(key = keyring::key_get("MY_GOOGLE_API"))
+geocode("Manhattan, New York City", source = "google")
+```
+
+```{r}
+# Download Map from Stamen Server
+nyc_map <- get_map(c(lon = -73.97125, lat = 40.78306), 
+                   zoom = 12, 
+                   maptype = "toner", 
+                   source = "stamen")
+```
+
+```{r}
+# Read Shapefile
+nyc_police_precincts <- readOGR("data/police_precincts/nypp.shp", "nypp")
+```
+
+```{r}
+shapefile <- spTransform(nyc_police_precincts, CRS("+proj=longlat +datum=WGS84"))
+```
+
+```{r}
+shapefile_df <- fortify(shapefile, region = "Precinct")
+```
+
+```{r}
+shapefile_df$id <- as.numeric(shapefile_df$id)
+```
+
+```{r}
+manhattan <- shapefile_df[shapefile_df$id <=34, ]
+```
+
+```{r}
+summary3 <- mydata %>%
+  filter(violation_precinct > 0 & violation_precinct <= 34) %>%
+  group_by(violation_precinct) %>%
+  summarise(n = n(), 
+            total_revenue = sum(fine), 
+            average_fine = mean(fine)) %>%
+  ungroup()
+```
+
+```{r}
+# Combine data
+manhattan <- manhattan %>%
+  inner_join(summary3, by = c("id" = "violation_precinct"))
+```
+
+```{r, fig.align='center'}
+ggmap(nyc_map)+
+  geom_polygon(data = manhattan, 
+               aes(x = long, y = lat, group = group, fill = n/1000), color = "#FFFFFF")+
+  scale_fill_distiller(palette = "YlGn", 
+                       direction = "horizontal", 
+                       guide = "colourbar", 
+                       breaks = seq(0, 280, by = 40), 
+                       limits = c(0, 280))+
+  labs(title = "Total Number of Parking Violations in Manhattan, 2020")+
+  guides(fill = guide_colorbar(title = "Total Number of Parking Violations (in thousands)", 
+                               barwidth = 15, 
+                               barheight = 1))+
+  theme_map()+
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.align='center'}
+ggmap(nyc_map)+
+  geom_polygon(data = manhattan, 
+               aes(x = long, y = lat, group = group, fill = total_revenue/10000), 
+               color = "#FFFFFF")+
+  scale_fill_distiller(palette = "OrRd", 
+                       direction = "horizontal", 
+                       guide = "colourbar", 
+                       breaks = seq(0, 2500, by = 500), 
+                       limits = c(0, 2500))+
+  labs(title = "Total Amount of Fines in Manhattan by Police Precinct, 2020")+
+  guides(fill = guide_colorbar(title = "Total Amount of Fines (in 10 thousands)", 
+                               barwidth = 15, 
+                               barheight = 1))+
+  theme_map()+
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.align='center'}
+ggmap(nyc_map)+
+  geom_polygon(data = manhattan, 
+               aes(x = long, y = lat, group = group, fill = average_fine), 
+               color = "#FFFFFF")+
+  scale_fill_distiller(palette = "Blues", 
+                       direction = "horizontal", 
+                       guide = "colourbar", 
+                       breaks = seq(70, 100, by = 5), 
+                       limits = c(70, 100))+
+  labs(title = "Average Amount of Fines in Manhattan by Police Precinct, 2020")+
+  guides(fill = guide_colorbar(title = "Average Amount of Fines", 
+                               barwidth = 15, 
+                               barheight = 1))+
+  theme_map()+
+  theme(legend.position = "bottom")
+```
+
+##### b) Types of violations
+
+Group the almost 100 types of ticket violations into a smaller set of 4-6 subgroups (where `other` should be the remainder of violations not included in other groups you defined). [Hint: No need to spend more than 5 minutes thinking about what the right grouping is.]. Provide choropleth maps for each of these subgroups to show where different types of violations are more or less common. 
+
+```{r}
+manhanttan_code <- as.vector(sort(unique(manhattan$id)))
+```
+
+```{r}
+mydata3 <- mydata %>%
+  filter(violation_precinct %in% manhanttan_code & !is.na(`VIOLATION DESCRIPTION`))
+```
+
+```{r}
+violation_descriptions <- unique(mydata$`VIOLATION DESCRIPTION`)
+no_standing <- violation_descriptions[str_detect(violation_descriptions, 
+                         pattern = START %R% "NO" %R% SPC %R% "STAND" %R% or("ING", " "))]
+no_parking <-  violation_descriptions[str_detect(violation_descriptions, 
+                                                 pattern = START %R% "NO" %R% SPC %R% "PARKING")]
+fire_hydrant <- violation_descriptions[str_detect(violation_descriptions, 
+                                                  pattern = START %R% "FIRE" %R% SPC %R% "HYDRANT")]
+```
+
+```{r}
+mydata3$`VIOLATION DESCRIPTION` <- ifelse(mydata3$`VIOLATION DESCRIPTION` %in% no_standing, 
+                                          "No Standing", 
+                                          mydata3$`VIOLATION DESCRIPTION`)
+mydata3$`VIOLATION DESCRIPTION` <- ifelse(mydata3$`VIOLATION DESCRIPTION` %in% no_parking, 
+                                          "No Parking", 
+                                          mydata3$`VIOLATION DESCRIPTION`)
+mydata3$`VIOLATION DESCRIPTION` <- ifelse(mydata3$`VIOLATION DESCRIPTION` %in% fire_hydrant, 
+                                          "Fire Hydrant", 
+                                          mydata3$`VIOLATION DESCRIPTION`)
+```
+
+```{r}
+mydata3$`VIOLATION DESCRIPTION` <- ifelse(mydata3$`VIOLATION DESCRIPTION` %in% c("No Standing", 
+                                                                                 "No Parking", 
+                                                                                 "Fire Hydrant"), 
+                                          mydata3$`VIOLATION DESCRIPTION`, 
+                                          "Others")
+```
+
+```{r}
+summary4 <- mydata3 %>%
+  group_by(violation_precinct, `VIOLATION DESCRIPTION`) %>%
+  tally() %>%
+  ungroup() %>%
+  rename(violation_number = n)
+```
+
+```{r}
+# Merge Data Set Again
+manhattan2 <- shapefile_df[shapefile_df$id <=34, ]
+manhattan2 <- manhattan2 %>%
+  left_join(summary4, by = c("id" = "violation_precinct"))
+```
+
+```{r, fig.align='center'}
+ggmap(nyc_map, base_layer = ggplot(data = manhattan2, aes(x = long, y = lat)))+
+  geom_polygon(aes(fill = log(violation_number), group = id), color = "white")+
+  scale_fill_distiller(palette = "YlGn", 
+                       direction = "horizontal")+
+  ggtitle("Number of Violations grouped by Types in NYC, 2020")+
+  labs(caption = "Source: NYC Open Data")+
+  theme_map()+
+  guides(fill = FALSE)+
+  theme(plot.title = element_text(size = 11, face = "bold", hjust = 0.5))+
+  facet_wrap(~`VIOLATION DESCRIPTION`)
+```
+
+#### 3. Focus on the Upper East
+
+[Precinct 19](https://www1.nyc.gov/site/nypd/bureaus/patrol/precincts/19th-precinct.page) identifies the Upper East Side. The data currently does not provide latitude and longitude of the violation locations (and I am not sure what these `street_code` variables are for).
+
+##### a) Ignoring fire hydrants
+
+Restrict your data to parking violations related to fire hydrants (`Violation Code = 40`). Using the variables `Street Name` and `House Number` as well as the knowledge that these addresses are in the Upper East Side of Manhattan, geocode at least 500 addresses. Include a data table of these addresses and the latitude and longitude of these addresses in the output. 
+
+```{r, include=FALSE, eval=FALSE}
+precinct19_fire_hydrants <- mydata %>%
+  filter(violation_precinct == 19 & `Violation Code` == 40) %>%
+  mutate(`House Number` = as.numeric(`House Number`)) %>%
+  drop_na(`House Number`) %>%
+  dplyr::select(`Summons Number`, `Issue Date`, `Plate ID`, 
+                `House Number`, `Street Name`, `Vehicle Make`) %>%
+  mutate(address = paste(`House Number`, `Street Name`, "New York, NY", sep = ". ")) %>%
+  top_n(500, `Summons Number`)
+```
+
+```{r, include=FALSE, eval=FALSE}
+write.csv(precinct19_fire_hydrants, "data/nyc19_fire_hydrants.csv", row.names = FALSE)
+```
+
+```{r}
+combined_data <- readRDS("data/combined_dataset.rds")
+```
+
+I'am not going to show Data Table here. You can simply call it use `datatable()` function.
+
+##### b) Interactive Map
+
+Provide an interactive map of the violations you geocoded using `leaflet`. Provide at least three pieces of information on the parking ticket in a popup.
+
+```{r}
+combined_data$label <- paste("Address: ", combined_data$address, "<br>", 
+                             "Plate ID: ", combined_data$`Plate ID`, "<br>", 
+                             "Issue Date: ", combined_data$`Issue Date`)
+```
+
+```{r, fig.align='center'}
+leaflet(options = leafletOptions(dragging = FALSE,
+                                 minZoom = 14,
+                                 maxZoom = 18)) %>%
+  setView(lng = mean(combined_data$lon), 
+          lat = mean(combined_data$lat), 
+          zoom = 14) %>%
+  addProviderTiles("CartoDB") %>%
+  addCircles(data = combined_data, 
+                   label = ~lapply(label, HTML)) %>%
+  addPolygons(data = subset(shapefile, Precinct == 19), 
+              color = "#FF0000", 
+              smoothFactor = 0.5, 
+              fill = NA)
+```
+
+##### c) Luxury cars and repeat offenders
+
+Using the vehicle `Plate ID`, identify repeat offenders (in the full dataset). Create another variable called `luxury_car` in which you identify luxury car brands using the `Vehicle Make` variable.
+
+Start with the previous map. Distinguish the points by whether the car is a repeat offender and/or luxury car. Add a legend informing the user about the color scheme. Also make sure that the added information about the car type and repeat offender status is now contained in the popup information. Show this map.
+
+```{r}
+sort(unique(combined_data$`Vehicle Make`))
+```
+
+```{r}
+luxury_car_brands <- c("ACURA", "AUDI", "BMW", "CADIL", "CHRYS", "HONDA", "PORSC", 
+                       "TESLA", "LAMBO", "LINCO", "LEXUS", "ME/BE", "ROVER", "GMC", 
+                       "JAGUA", "ROLLS", "HARLE")
+```
+
+```{r}
+mydata4 <- combined_data %>%
+  group_by(`Plate ID`) %>%
+  mutate(repeat_times = n()) %>%
+  ungroup() %>%
+  mutate(luxury_car = ifelse(combined_data$`Vehicle Make` %in% luxury_car_brands, 
+                                   "Luxury Car", 
+                                   "Normal Car")) %>%
+  arrange(desc(repeat_times))
+```
+
+```{r}
+pal <- colorFactor(palette = c("#FB6542", "#375E97"), 
+                   levels = c("Luxury Car", "Normal Car"))
+mydata4$label <- paste("Address: ", mydata4$address, "<br>", 
+                       "Plate ID: ", mydata4$`Plate ID`, "<br>",
+                       "Issue Date: ", mydata4$`Issue Date`, "<br>",
+                       "Car Brand: ", mydata4$`Vehicle Make`, "<br>", 
+                       "Repeat Times: ", mydata4$repeat_times)
+```
+
+```{r, fig.align='center'}
+leaflet(options = leafletOptions(minZoom = 14,
+                                 maxZoom = 18)) %>%
+  setView(lng = mean(mydata4$lon), 
+          lat = mean(mydata4$lat), 
+          zoom = 14) %>%
+  addProviderTiles("CartoDB") %>%
+  addCircleMarkers(data = filter(mydata4, repeat_times <= 1), 
+             color = ~pal(luxury_car), 
+             label = ~lapply(label, HTML),
+             labelOptions = list(textsize = "14px"),
+             radius = 1,
+             group = "Non-Repeat Offender") %>%
+  addCircleMarkers(data = filter(mydata4, repeat_times > 1), 
+             color = ~pal(luxury_car), 
+             label = ~lapply(label, HTML),
+             labelOptions = list(textsize = "14px"),
+             radius = 1,
+             group = "Repeat Offender") %>%
+  addPolygons(data = subset(shapefile, Precinct == 19), 
+              color = "#FF0000", 
+              smoothFactor = 0.5, 
+              fill = NA) %>%
+  addLegend(position = "bottomright", 
+            pal = pal, 
+            values = c("Luxury Car", "Normal Car"), 
+            title = "Luxury Car Status", 
+            opacity = 0.5) %>%
+  addLayersControl(overlayGroups = c("Non-Repeat Offender", "Repeat Offender"), 
+                   position = "topright", 
+                   options = layersControlOptions(collapsed = FALSE))
+```
+
+##### d) Cluster
+
+Add marker clustering, so that zooming in will reveal the individual locations but the zoomed out map only shows the clusters. Show the map with clusters.
+
+```{r, fig.align='center'}
+leaflet(options = leafletOptions(minZoom = 14,
+                                 maxZoom = 18)) %>%
+  setView(lng = mean(mydata4$lon), 
+          lat = mean(mydata4$lat), 
+          zoom = 14) %>%
+  addProviderTiles("CartoDB") %>%
+  addCircleMarkers(data = filter(mydata4, repeat_times <= 1), 
+             color = ~pal(luxury_car), 
+             label = ~lapply(label, HTML), 
+             radius = 1,
+             group = "Non-Repeat Offender", 
+             clusterOptions = markerClusterOptions()) %>%
+  addCircleMarkers(data = filter(mydata4, repeat_times > 1), 
+             color = ~pal(luxury_car),
+             label = ~lapply(label, HTML),
+             radius = 1,
+             group = "Repeat Offender", 
+             clusterOptions = markerClusterOptions()) %>%
+  addPolygons(data = subset(shapefile, Precinct == 19), 
+              color = "#FF0000", 
+              smoothFactor = 0.5, 
+              fill = NA) %>%
+  addLegend(position = "bottomright", 
+            pal = pal, 
+            values = c("Luxury Car", "Normal Car"), 
+            title = "Luxury Car Status", 
+            opacity = 0.5) %>%
+  addLayersControl(overlayGroups = c("Non-Repeat Offender", "Repeat Offender"), 
+                   position = "topright", 
+                   options = layersControlOptions(collapsed = FALSE))
+```
+
+## Submission
+
+Please follow the [instructions](/Exercises/homework_submission_instructions.md) to submit your homework. The homework is due on Wednesday, March 17.
+
+## Please stay honest!
+
+If you do come across something online that provides part of the analysis / code etc., please no wholesale copying of other ideas. We are trying to evaluate your abilities to visualized data not the ability to do internet searches. Also, this is an individually assigned exercise -- please keep your solution to yourself.
